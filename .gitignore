@@ -1,3 +1,4 @@
 /dlib
 /dlib/*
-*.p
+/data/*.p
+/model/*

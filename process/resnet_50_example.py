@@ -12,7 +12,7 @@ import os
 import cv2
 import numpy as np
 import math
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,2,3'
 
 class FerSet(data.Dataset):
     def __init__(self, path=None, is_align=True):
@@ -210,12 +210,13 @@ if use_cuda:
     expressionNet = expressionNet.cuda()
 
 def train():
+    expressionNet.load_state_dict(torch.load('./../model/example_model/example_model_115_.pkl'))
     expressionNet.train()
     batch_size = 128
-    lr_1 = 0.05
-    epochs_1 = 100
-    lr_2 = 0.005
-    epochs_2 = 20
+    lr_1 = 0.01
+    epochs_1 = 101
+    lr_2 = 0.001
+    epochs_2 = 21
     # 定义优化器
     optimizer = torch.optim.SGD(expressionNet.parameters(), lr=lr_1, momentum=0.9)
     # 定义loss函数
@@ -238,7 +239,7 @@ def train():
             out = expressionNet(b_x)
             # 计算误差
             loss = loss_function(out, b_y)
-            loss_total = loss_total +loss
+            loss_total = loss_total + float(loss)
             # 反向传播
             optimizer.zero_grad()
             loss.backward()
@@ -249,7 +250,7 @@ def train():
         print('current epoch: {0}  loss: {1}'.format(epoch, loss_total))
         if epoch % 10 == 0:
             print('first train: the {0} epoch loss is {1}'.format(epoch, loss_total))
-            torch.save(expressionNet.state_dict(), './../model/example_model/example_model_'+str(epoch)+'_.pkl')
+            torch.save(expressionNet.state_dict(), './../model/example_model/example_model_'+str(epoch+115)+'_.pkl')
 
     # 定义优化器
     optimizer = torch.optim.SGD(expressionNet.parameters(), lr=lr_2, momentum=0.9)
@@ -279,38 +280,48 @@ def train():
         if epoch % 5 == 0:
             print('finetune train: the {0} epoch loss is {1}'.format(epoch, loss_total))
             # save model
-            torch.save(expressionNet.state_dict(), './../model/example_model/example_model_'+str(epoch+epochs_1)+'_.pkl')
+            torch.save(expressionNet.state_dict(), './../model/example_model/example_model_'+str(epoch+epochs_1+115)+'_.pkl')
 
 def test():
     # 测试数据集
     test_loss = 0
     correct = 0
     # load model
-    expressionNet = NaiveNet()
-    expressionNet.load_state_dict(torch.load('./../model/example_model/example_model_215_.pkl'))
-    # expressionNet.eval()
+    # expressionNet = resnet50()
+    # use_cuda = True
+    # if torch.cuda.is_available() is False:
+    #     use_cuda = False
+    #     print(use_cuda)
+    # if use_cuda:
+    #     expressionNet = expressionNet.cuda()
+    # print(use_cuda)
+    expressionNet.load_state_dict(torch.load('./../model/example_model/example_model_235_.pkl'))
+    expressionNet.eval()
     testPath = '../data/fer2013/test_aligned/'
     test_set = FerSet(path=testPath, is_align=True)
     test_loader = DataLoader(test_set, batch_size=1)
     loss_function = nn.CrossEntropyLoss()
-    for data, target in test_loader:
-        if torch.cuda.is_available() is False:
-            data, target = data.cuda(), target.cuda()
+    for i, (data, target) in enumerate(test_loader):
         data, target = Variable(data), Variable(target)
+        if use_cuda:
+            data, target = data.cuda(), target.cuda()
+        # print(expressionNet(data))
         output = expressionNet(data)
-        test_loss += loss_function(output, target)
+        test_loss += float(loss_function(output, target))
         # print(output)
         # print(target)
         pred1, pred2 = output.data.max(1, keepdim=True)
         # print(pred2)
+        # print(target)
         if pred2 == target:
             correct = correct + 1
+        # if i == 1000:
+        #     break
 
         # correct += pred.eq(target.data.view_as(pred)).cpu().sum()
     test_loss /=len(test_loader.dataset)
     print('\n test_set: Average_loss:{:.4f}, Accurracy: {}/{}({:.0f})%)\n').format(
-        test_loss, correct, len(test_loader.dataset), 100.*correct/len(test_loader.dataset)
-    )
+        test_loss, correct, len(test_loader.dataset), 100.*correct/i)
 
 
 if __name__ == '__main__':

@@ -2,3 +2,4 @@
 /dlib/*
 /data/*.p
 /model/*
+.idea*

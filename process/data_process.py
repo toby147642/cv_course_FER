@@ -9,75 +9,86 @@ import dlib
 from face_align import FaceAlign
 
 
-
-def dataAugmentation(set_name=None):
+def dataAugmentation(set_name=None, sampled=False, rotate=False, scale=False, noise=False):
     assert set_name is not None
     print set_name
     dim = 48
     train_label = None
     data = []
-    with open('../data/fer2013/{}'.format(set_name), 'rb') as f:
+    with open('../data/{}'.format(set_name), 'rb') as f:
         samples = pickle.load(f)
         for i, d in enumerate(samples['data']):
             # 随机采样，平移
+            count = 0
             d = np.reshape(d, (dim, dim))
             raw = np.array([d], dtype=np.uint8)
+
             # 原始数据
+            count += 1
             data.append(raw)
-            padding1 = np.zeros((2, dim), dtype=np.uint8)
-            padding2 = np.zeros((dim+4, 2), dtype=np.uint8)
+            if sampled:
+                padding1 = np.zeros((2, dim), dtype=np.uint8)
+                padding2 = np.zeros((dim+4, 2), dtype=np.uint8)
 
-            temp_d = np.concatenate((d, padding1), axis=0)
-            temp_d = np.concatenate((padding1, temp_d), axis=0)
-            temp_d = np.concatenate((temp_d, padding2), axis=1)
-            temp_d = np.concatenate((padding2, temp_d), axis=1)
-
-            for j in range(4):
-                rd_x = random.randint(dim/2, dim/2+4)
-                rd_y = random.randint(dim/2, dim/2+4)
-                if rd_x == dim/2+2 and rd_y == dim/2+2:
+                temp_d = np.concatenate((d, padding1), axis=0)
+                temp_d = np.concatenate((padding1, temp_d), axis=0)
+                temp_d = np.concatenate((temp_d, padding2), axis=1)
+                temp_d = np.concatenate((padding2, temp_d), axis=1)
+                for j in range(4):
                     rd_x = random.randint(dim/2, dim/2+4)
                     rd_y = random.randint(dim/2, dim/2+4)
-                r = temp_d[rd_y - dim/2:rd_y + dim/2, rd_x - dim/2:rd_x + dim/2]
+                    if rd_x == dim/2+2 and rd_y == dim/2+2:
+                        rd_x = random.randint(dim/2, dim/2+4)
+                        rd_y = random.randint(dim/2, dim/2+4)
+                    r = temp_d[rd_y - dim/2:rd_y + dim/2, rd_x - dim/2:rd_x + dim/2]
+                    count += 1
 
-                data.append(np.array([r], dtype=np.uint8))
+                    data.append(np.array([r], dtype=np.uint8))
             # 映射
-            rotation1 = raw[:, ::-1, :]
-            rotation2 = raw[:, :, ::-1]
-            data.append(rotation1)
-            data.append(rotation2)
+            if rotate:
+                rotation1 = raw[:, ::-1, :]
+                rotation2 = raw[:, :, ::-1]
+                count += 1
+                data.append(rotation1)
+                count += 1
+                data.append(rotation2)
             # 尺度
-            up_scale = 1.1
-            up_sample = np.zeros((1, dim, dim), dtype=np.uint8)
-            down_sample = np.zeros((1, dim, dim), dtype=np.uint8)
-            down_scale = 0.9
-            temp = cv2.resize(d,
-                              (0, 0),
-                              fx=up_scale,
-                              fy=up_scale,
-                              interpolation=cv2.INTER_CUBIC)
-            up_sample[:,:,:] = temp[
-                        temp.shape[1]/2-dim/2:temp.shape[1]/2+dim/2,
-                        temp.shape[0]/2-dim/2:temp.shape[0]/2+dim/2]
+            if scale:
+                up_scale = 1.1
+                up_sample = np.zeros((1, dim, dim), dtype=np.uint8)
+                down_sample = np.zeros((1, dim, dim), dtype=np.uint8)
+                down_scale = 0.9
+                temp = cv2.resize(d,
+                                  (0, 0),
+                                  fx=up_scale,
+                                  fy=up_scale,
+                                  interpolation=cv2.INTER_CUBIC)
+                up_sample[:,:,:] = temp[
+                            temp.shape[1]/2-dim/2:temp.shape[1]/2+dim/2,
+                            temp.shape[0]/2-dim/2:temp.shape[0]/2+dim/2]
 
-            temp = cv2.resize(d, (0, 0), fx=down_scale, fy=down_scale)
-            down_sample[
-                :,
-            dim/2-(temp.shape[1]+1)/2:dim/2+temp.shape[1]/2,
-            dim/2-(temp.shape[0]+1)/2:dim/2+temp.shape[0]/2] = temp[:,:]
-            data.append(up_sample)
-            data.append(down_sample)
+                temp = cv2.resize(d, (0, 0), fx=down_scale, fy=down_scale)
+                down_sample[
+                    :,
+                dim/2-(temp.shape[1]+1)/2:dim/2+temp.shape[1]/2,
+                dim/2-(temp.shape[0]+1)/2:dim/2+temp.shape[0]/2] = temp[:,:]
+                count += 1
+                data.append(up_sample)
+                count += 1
+                data.append(down_sample)
             # 加椒盐噪声
-            noise = raw.copy()
-            for k in range(25):
-                rx = random.randint(0, dim-1)
-                ry = random.randint(0, dim-1)
-                noise[0, rx, ry] = 255
-            for k in range(25):
-                rx = random.randint(0, dim-1)
-                ry = random.randint(0, dim-1)
-                noise[0, rx, ry] = 255
-            data.append(noise)
+            if noise:
+                noise = raw.copy()
+                for k in range(25):
+                    rx = random.randint(0, dim-1)
+                    ry = random.randint(0, dim-1)
+                    noise[0, rx, ry] = 255
+                for k in range(25):
+                    rx = random.randint(0, dim-1)
+                    ry = random.randint(0, dim-1)
+                    noise[0, rx, ry] = 255
+                count += 1
+                data.append(noise)
             if (i+1) % 5000 == 0:
                 print "data augmentation on : {}".format(i+1)
             # r = np.array([r])
@@ -88,7 +99,7 @@ def dataAugmentation(set_name=None):
             #     break
 
         data = np.array(data)
-        train_label = np.array(samples['label']).repeat(10)
+        train_label = np.array(samples['label']).repeat(count)
 
     print data.shape
     print train_label.shape
@@ -101,7 +112,7 @@ def data_set_load(set_name=None, is_validate=False):
     dim = 48
     vlabels = None
 
-    with open('../data/fer2013/{}'.format(set_name), 'rb') as f:
+    with open('../data/{}'.format(set_name), 'rb') as f:
         samples = pickle.load(f)
         data = []
         val = []
